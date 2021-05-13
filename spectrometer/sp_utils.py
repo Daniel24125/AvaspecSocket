@@ -9,16 +9,19 @@ import numpy as np
 import sys
 import time
 import json
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from errors import SpectrometerException
+
 
 class Avantes():
-    def __init__(self, path, ws):
+    def __init__(self, path):
         self._handle = None
         self.sdk = WinDLL(path)
         self.MeasConfigType = MeasConfigType  #: :class:`MeasConfigType`
         self.OemDataType = OemDataType  #: :class:`OemDataType`
         self.DeviceConfigType = DeviceConfigType  #: :class:`DeviceConfigType`
         self.path = path
-        self.ws = ws
 
         functions = {
             'AVS_Init': (c_int32, self._err_check,
@@ -84,13 +87,8 @@ class Avantes():
         return cdll
 
     def raise_exception(self, msg, error_name=None, code=None): 
-        self.ws.send(text_data=json.dumps( {
-            "error": True, 
-            "msg": msg, 
-            "error_name": error_name,
-            "code": code
-        }))
-        self.ws.close()
+        raise SpectrometerException(error_code=code, error_msg=msg, error_name=error_name)
+        
 
     def _err_check(self, result, func, arguments):
         if result < 0:
@@ -231,7 +229,6 @@ class Avantes():
         self.types = (AvsIdentityType * nmax)()
         self.sdk.AVS_GetList.argtypes = [c_uint32, POINTER(c_uint32), POINTER(AvsIdentityType)]
         n = self.sdk.AVS_GetList(size, required_size, self.types)
-
         if n == 0: 
             self.raise_exception(msg='No device found.')
         if n < 0:
@@ -247,7 +244,8 @@ class Avantes():
     def disconnect(self):
         """Closes communication with the spectrometer."""
         self.deactivate()
-        self.done()
+        result_done = self.done()
+        print(f"Result done: {result_done}")
 
     def get_lambda(self, channel=0):
         """Returns the wavelength values corresponding to the pixels if available.
